@@ -1,0 +1,276 @@
+name: streamlite
+
+services:
+  # ============================================================================
+  # Dedicated PostgreSQL 16 Instances (Database-per-Service)
+  # ============================================================================
+  postgres-auth:
+    image: postgres:16-alpine
+    container_name: streamlite-postgres-auth
+    profiles: ["core"]
+    environment:
+      POSTGRES_DB: ${AUTH_DB_NAME:-auth_db}
+      POSTGRES_USER: ${AUTH_DB_USER:-auth}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASS:-auth_dev_password}
+    ports:
+      - "${AUTH_DB_PORT:-5438}:5432"
+    volumes:
+      - pgdata_auth:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-auth} -d ${AUTH_DB_NAME:-auth_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  postgres-catalog:
+    image: postgres:16-alpine
+    container_name: streamlite-postgres-catalog
+    profiles: ["core"]
+    environment:
+      POSTGRES_DB: ${CATALOG_DB_NAME:-catalog_db}
+      POSTGRES_USER: ${CATALOG_DB_USER:-catalog}
+      POSTGRES_PASSWORD: ${CATALOG_DB_PASS:-catalog_dev_password}
+    ports:
+      - "${CATALOG_DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata_catalog:/var/lib/postgresql/data
+      - ./postgres/init-catalog.sql:/docker-entrypoint-initdb.d/init.sql:ro,z
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CATALOG_DB_USER:-catalog} -d ${CATALOG_DB_NAME:-catalog_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  postgres-upload:
+    image: postgres:16-alpine
+    container_name: streamlite-postgres-upload
+    profiles: ["core"]
+    environment:
+      POSTGRES_DB: ${UPLOAD_DB_NAME:-upload_db}
+      POSTGRES_USER: ${UPLOAD_DB_USER:-upload}
+      POSTGRES_PASSWORD: ${UPLOAD_DB_PASS:-upload_dev_password}
+    ports:
+      - "${UPLOAD_DB_PORT:-5434}:5432"
+    volumes:
+      - pgdata_upload:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${UPLOAD_DB_USER:-upload} -d ${UPLOAD_DB_NAME:-upload_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  postgres-transcoder:
+    image: postgres:16-alpine
+    container_name: streamlite-postgres-transcoder
+    profiles: ["core"]
+    environment:
+      POSTGRES_DB: ${TRANSCODER_DB_NAME:-transcoder_db}
+      POSTGRES_USER: ${TRANSCODER_DB_USER:-transcoder}
+      POSTGRES_PASSWORD: ${TRANSCODER_DB_PASS:-transcoder_dev_password}
+    ports:
+      - "${TRANSCODER_DB_PORT:-5435}:5432"
+    volumes:
+      - pgdata_transcoder:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TRANSCODER_DB_USER:-transcoder} -d ${TRANSCODER_DB_NAME:-transcoder_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  postgres-watch:
+    image: postgres:16-alpine
+    container_name: streamlite-postgres-watch
+    profiles: ["core"]
+    environment:
+      POSTGRES_DB: ${WATCH_DB_NAME:-watch_db}
+      POSTGRES_USER: ${WATCH_DB_USER:-watch}
+      POSTGRES_PASSWORD: ${WATCH_DB_PASS:-watch_dev_password}
+    ports:
+      - "${WATCH_DB_PORT:-5436}:5432"
+    volumes:
+      - pgdata_watch:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WATCH_DB_USER:-watch} -d ${WATCH_DB_NAME:-watch_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  postgres-reco:
+    image: postgres:16-alpine
+    container_name: streamlite-postgres-reco
+    profiles: ["core"]
+    environment:
+      POSTGRES_DB: ${RECO_DB_NAME:-reco_db}
+      POSTGRES_USER: ${RECO_DB_USER:-reco}
+      POSTGRES_PASSWORD: ${RECO_DB_PASS:-reco_dev_password}
+    ports:
+      - "${RECO_DB_PORT:-5437}:5432"
+    volumes:
+      - pgdata_reco:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${RECO_DB_USER:-reco} -d ${RECO_DB_NAME:-reco_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ============================================================================
+  # In-Memory Cache & Session Store
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: streamlite-redis
+    profiles: ["core"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================================
+  # Event Streaming Broker (Redpanda / Kafka-compatible)
+  # ============================================================================
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.14
+    container_name: streamlite-redpanda
+    profiles: ["core"]
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:${KAFKA_BROKER_PORT:-19092}
+      - --pandaproxy-addr
+      - 0.0.0.0:8082
+      - --advertise-pandaproxy-addr
+      - redpanda:8082
+    ports:
+      - "${KAFKA_BROKER_PORT:-19092}:19092"
+      - "${KAFKA_ADMIN_PORT:-9644}:9644"
+    volumes:
+      - redpandadata:/var/lib/redpanda/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  # ============================================================================
+  # S3 Object Storage (SeaweedFS)
+  # ============================================================================
+  s3:
+    image: chrislusf/seaweedfs:latest
+    container_name: streamlite-s3
+    profiles: ["core"]
+    command:
+      - server
+      - -ip.bind=0.0.0.0
+      - -s3
+      - -s3.port=8333
+      - -s3.ip.bind=0.0.0.0
+      - -s3.allowedOrigins=http://localhost:8080,http://localhost:5173
+      - -s3.config=/etc/seaweedfs/s3_config.json
+      - -filer=true
+      - -dir=/data
+    ports:
+      - "${S3_PORT:-8333}:8333"
+      - "${S3_FILER_PORT:-8888}:8888"
+    volumes:
+      - s3data:/data
+      - ./seaweedfs/s3_config.json:/etc/seaweedfs/s3_config.json:ro,z
+    networks:
+      - edge
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8333/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ============================================================================
+  # Local Developer Mail Catcher (Mailpit)
+  # ============================================================================
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: streamlite-mailpit
+    profiles: ["core"]
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_WEB_PORT:-8025}:8025"
+    networks:
+      - edge
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8025/api/v1/info || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+# ==============================================================================
+# Networks & Storage Volumes
+# ==============================================================================
+networks:
+  edge:
+    name: streamlite-edge
+  backend:
+    name: streamlite-backend
+
+volumes:
+  pgdata_auth:
+    name: streamlite-pgdata-auth
+  pgdata_catalog:
+    name: streamlite-pgdata-catalog
+  pgdata_upload:
+    name: streamlite-pgdata-upload
+  pgdata_transcoder:
+    name: streamlite-pgdata-transcoder
+  pgdata_watch:
+    name: streamlite-pgdata-watch
+  pgdata_reco:
+    name: streamlite-pgdata-reco
+  redisdata:
+    name: streamlite-redisdata
+  redpandadata:
+    name: streamlite-redpandadata
+  s3data:
+    name: streamlite-s3data

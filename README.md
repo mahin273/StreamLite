@@ -41,19 +41,19 @@ flowchart TD
         RecoSvc["recommendation-svc"]
     end
 
-    subgraph Databases ["Data Layer"]
-        AuthDB[("auth_db (PostgreSQL)")]
-        CatalogDB[("catalog_db (PostgreSQL)")]
-        UploadDB[("upload_db (PostgreSQL)")]
-        WatchDB[("watch_db (PostgreSQL)")]
-        RecoDB[("reco_db (PostgreSQL)")]
+    subgraph Databases ["Data Layer (Physical Database-per-Service)"]
+        AuthDB[("postgres-auth (auth_db)")]
+        CatalogDB[("postgres-catalog (catalog_db)")]
+        UploadDB[("postgres-upload (upload_db)")]
+        WatchDB[("postgres-watch (watch_db)")]
+        RecoDB[("postgres-reco (reco_db)")]
         AppRedis[("Shared/Service Redis (Streams, Hot Progress, Trending)")]
     end
 
     subgraph AsyncAndWorkers ["Asynchronous Transcoding & Messaging"]
         Redpanda["Redpanda Event Broker (Kafka API)"]
         TranscoderWorkers["Transcoder Workers xN (FFmpeg / ffprobe)"]
-        TranscoderDB[("transcoder_db (Job Queue)")]
+        TranscoderDB[("postgres-transcoder (transcoder_db)")]
     end
 
     %% Client traffic
@@ -113,7 +113,7 @@ flowchart TD
 
 - **Runtime**: Node.js LTS, TypeScript 5.x (strict)
 - **Framework**: NestJS with Fastify adapter
-- **Database & Cache**: PostgreSQL 16, Redis 7
+- **Database & Cache**: PostgreSQL 16 (6 dedicated containers: auth, catalog, upload, transcoder, watch, reco), Redis 7
 - **Data Access & Migrations**: Kysely (type-safe SQL builder) + `node-pg-migrate`
 - **Event Streaming**: Redpanda (Kafka-compatible API) via KafkaJS with transactional outbox & idempotent consumers
 - **Object Storage**: SeaweedFS (S3-compatible, zero-cost local Docker storage)

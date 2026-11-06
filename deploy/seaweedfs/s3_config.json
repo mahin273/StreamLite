@@ -1,0 +1,29 @@
+{
+  "identities": [
+    {
+      "name": "anonymous",
+      "actions": [
+        "Read:media",
+        "List:media",
+        "Read:images",
+        "List:images"
+      ]
+    },
+    {
+      "name": "streamlite",
+      "credentials": [
+        {
+          "accessKey": "streamlite_dev_key",
+          "secretKey": "streamlite_dev_secret"
+        }
+      ],
+      "actions": [
+        "Admin",
+        "Read",
+        "List",
+        "Tagging",
+        "Write"
+      ]
+    }
+  ]
+}
