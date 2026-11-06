@@ -11,7 +11,7 @@ services:
     environment:
       POSTGRES_DB: ${AUTH_DB_NAME:-auth_db}
       POSTGRES_USER: ${AUTH_DB_USER:-auth}
-      POSTGRES_PASSWORD: ${AUTH_DB_PASS:-auth_dev_password}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASS:-10273}
     ports:
       - "${AUTH_DB_PORT:-5438}:5432"
     volumes:
@@ -32,7 +32,7 @@ services:
     environment:
       POSTGRES_DB: ${CATALOG_DB_NAME:-catalog_db}
       POSTGRES_USER: ${CATALOG_DB_USER:-catalog}
-      POSTGRES_PASSWORD: ${CATALOG_DB_PASS:-catalog_dev_password}
+      POSTGRES_PASSWORD: ${CATALOG_DB_PASS:-10273}
     ports:
       - "${CATALOG_DB_PORT:-5433}:5432"
     volumes:
@@ -54,7 +54,7 @@ services:
     environment:
       POSTGRES_DB: ${UPLOAD_DB_NAME:-upload_db}
       POSTGRES_USER: ${UPLOAD_DB_USER:-upload}
-      POSTGRES_PASSWORD: ${UPLOAD_DB_PASS:-upload_dev_password}
+      POSTGRES_PASSWORD: ${UPLOAD_DB_PASS:-10273}
     ports:
       - "${UPLOAD_DB_PORT:-5434}:5432"
     volumes:
@@ -75,7 +75,7 @@ services:
     environment:
       POSTGRES_DB: ${TRANSCODER_DB_NAME:-transcoder_db}
       POSTGRES_USER: ${TRANSCODER_DB_USER:-transcoder}
-      POSTGRES_PASSWORD: ${TRANSCODER_DB_PASS:-transcoder_dev_password}
+      POSTGRES_PASSWORD: ${TRANSCODER_DB_PASS:-10273}
     ports:
       - "${TRANSCODER_DB_PORT:-5435}:5432"
     volumes:
@@ -96,7 +96,7 @@ services:
     environment:
       POSTGRES_DB: ${WATCH_DB_NAME:-watch_db}
       POSTGRES_USER: ${WATCH_DB_USER:-watch}
-      POSTGRES_PASSWORD: ${WATCH_DB_PASS:-watch_dev_password}
+      POSTGRES_PASSWORD: ${WATCH_DB_PASS:-10273}
     ports:
       - "${WATCH_DB_PORT:-5436}:5432"
     volumes:
@@ -117,7 +117,7 @@ services:
     environment:
       POSTGRES_DB: ${RECO_DB_NAME:-reco_db}
       POSTGRES_USER: ${RECO_DB_USER:-reco}
-      POSTGRES_PASSWORD: ${RECO_DB_PASS:-reco_dev_password}
+      POSTGRES_PASSWORD: ${RECO_DB_PASS:-10273}
     ports:
       - "${RECO_DB_PORT:-5437}:5432"
     volumes:
