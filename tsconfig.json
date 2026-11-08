@@ -4,5 +4,9 @@
     "noEmit": true
   },
   "files": [],
-  "references": []
+  "references": [
+    { "path": "./packages/contracts" },
+    { "path": "./packages/logger" },
+    { "path": "./packages/http" }
+  ]
 }
