@@ -1,0 +1,17 @@
+{
+  "name": "@streamlite/events",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "dependencies": {
+    "@streamlite/contracts": "*",
+    "@streamlite/logger": "*",
+    "kafkajs": "^2.2.4",
+    "zod": "^3.24.2"
+  }
+}

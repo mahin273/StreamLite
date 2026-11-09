@@ -8,6 +8,8 @@
     { "path": "./packages/contracts" },
     { "path": "./packages/logger" },
     { "path": "./packages/http" },
-    { "path": "./packages/blob" }
+    { "path": "./packages/blob" },
+    { "path": "./packages/events" },
+    { "path": "./packages/outbox" }
   ]
 }
