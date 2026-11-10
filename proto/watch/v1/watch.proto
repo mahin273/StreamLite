@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package watch.v1;
+
+service WatchService {
+  rpc GetPosition(GetPositionRequest) returns (GetPositionResponse);
+}
+
+message GetPositionRequest {
+  string profile_id = 1;
+  string video_id = 2;
+}
+
+message GetPositionResponse {
+  int32 position_sec = 1;
+  int32 duration_sec = 2;
+  bool completed = 3;
+}

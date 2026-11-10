@@ -10,6 +10,7 @@
     { "path": "./packages/http" },
     { "path": "./packages/blob" },
     { "path": "./packages/events" },
-    { "path": "./packages/outbox" }
+    { "path": "./packages/outbox" },
+    { "path": "./packages/proto-gen" }
   ]
 }

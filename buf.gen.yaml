@@ -1,0 +1,11 @@
+version: v1
+plugins:
+  - plugin: ts_proto
+    path: ./node_modules/.bin/protoc-gen-ts_proto
+    out: packages/proto-gen/src
+    opt:
+      - nestJs=true
+      - addGrpcMetadata=true
+      - esModuleInterop=true
+      - outputServices=grpc-js
+      - exportCommonSymbols=false

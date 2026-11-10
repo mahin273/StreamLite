@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+service CatalogService {
+  rpc CheckVideoOwnership(CheckVideoOwnershipRequest) returns (CheckVideoOwnershipResponse);
+  rpc GetPlayableVideo(GetPlayableVideoRequest) returns (GetPlayableVideoResponse);
+  rpc GetNextEpisode(GetNextEpisodeRequest) returns (GetNextEpisodeResponse);
+  rpc BatchGetTitleCards(BatchGetTitleCardsRequest) returns (BatchGetTitleCardsResponse);
+}
+
+message CheckVideoOwnershipRequest {
+  string video_id = 1;
+  string user_id = 2;
+}
+
+message CheckVideoOwnershipResponse {
+  bool is_owner = 1;
+  string status = 2;
+}
+
+message GetPlayableVideoRequest {
+  string video_id = 1;
+  string user_id = 2;
+}
+
+message Rendition {
+  int32 height = 1;
+  int32 width = 2;
+  int32 bitrate = 3;
+  string playlist_key = 4;
+}
+
+message GetPlayableVideoResponse {
+  string video_id = 1;
+  string title_id = 2;
+  string master_playlist_key = 3;
+  repeated Rendition renditions = 4;
+  int32 duration_sec = 5;
+}
+
+message GetNextEpisodeRequest {
+  string current_video_id = 1;
+}
+
+message GetNextEpisodeResponse {
+  bool has_next = 1;
+  string next_video_id = 2;
+  string title = 3;
+  int32 episode_number = 4;
+}
+
+message BatchGetTitleCardsRequest {
+  repeated string title_ids = 1;
+}
+
+message TitleCard {
+  string title_id = 1;
+  string name = 2;
+  string poster_key = 3;
+  repeated string genres = 4;
+  int32 release_year = 5;
+}
+
+message BatchGetTitleCardsResponse {
+  repeated TitleCard titles = 1;
+}
