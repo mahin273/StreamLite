@@ -1,0 +1,31 @@
+{
+  "name": "@streamlite/auth-service",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "migrate:up": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down",
+    "codegen:kysely": "kysely-codegen --url ${AUTH_DB_URL:-postgres://auth:10273@localhost:5438/auth_db} --out-file ./src/store/types.ts",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "dependencies": {
+    "@streamlite/contracts": "*",
+    "@streamlite/events": "*",
+    "@streamlite/http": "*",
+    "@streamlite/logger": "*",
+    "@streamlite/outbox": "*",
+    "@streamlite/proto-gen": "*",
+    "kysely": "^0.27.5",
+    "pg": "^8.13.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10",
+    "kysely-codegen": "^0.17.0",
+    "node-pg-migrate": "^7.8.0"
+  }
+}
