@@ -11,6 +11,7 @@
     { "path": "./packages/blob" },
     { "path": "./packages/events" },
     { "path": "./packages/outbox" },
-    { "path": "./packages/proto-gen" }
+    { "path": "./packages/proto-gen" },
+    { "path": "./services/auth" }
   ]
 }
