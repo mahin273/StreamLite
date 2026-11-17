@@ -1,11 +1,12 @@
 import { Injectable, Inject } from '@nestjs/common';
 import type { Selectable } from 'kysely';
 import type { AuthDatabase } from './database.js';
-import type { Users, EmailTokens } from './types.js';
+import type { Users, EmailTokens, RefreshTokens } from './types.js';
 
 export const AUTH_DATABASE = 'AUTH_DATABASE';
 export type User = Selectable<Users>;
 export type EmailToken = Selectable<EmailTokens>;
+export type RefreshToken = Selectable<RefreshTokens>;
 
 export interface CreateRegisteredUserParams {
   email: string;
@@ -243,5 +244,151 @@ export class UserRepository {
 
       return user;
     });
+  }
+
+  /**
+   * Resets failed login attempts for a user upon successful authentication.
+   */
+  async resetFailedLogins(userId: string): Promise<void> {
+    await this.db
+      .updateTable('users')
+      .set({
+        failed_logins: 0,
+        locked_until: null,
+        updated_at: new Date(),
+      })
+      .where('id', '=', userId)
+      .execute();
+  }
+
+  /**
+   * Increments failed logins counter.
+   */
+  async incrementFailedLogins(userId: string): Promise<number> {
+    const res = await this.db
+      .updateTable('users')
+      .set((eb) => ({
+        failed_logins: eb('failed_logins', '+', 1),
+        updated_at: new Date(),
+      }))
+      .where('id', '=', userId)
+      .returning(['failed_logins'])
+      .executeTakeFirst();
+    return res?.failed_logins ?? 0;
+  }
+
+  /**
+   * Inserts a new refresh token record.
+   */
+  async createRefreshToken(params: {
+    id?: string;
+    userId: string;
+    familyId: string;
+    tokenHash: Buffer;
+    expiresAt: Date;
+    ip?: string | null;
+    userAgent?: string | null;
+  }): Promise<RefreshToken> {
+    return this.db
+      .insertInto('refresh_tokens')
+      .values({
+        ...(params.id ? { id: params.id } : {}),
+        user_id: params.userId,
+        family_id: params.familyId,
+        token_hash: params.tokenHash,
+        expires_at: params.expiresAt,
+        ip: params.ip ?? null,
+        user_agent: params.userAgent ?? null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+  }
+
+  /**
+   * Finds a refresh token by its SHA-256 binary hash.
+   */
+  async findRefreshTokenByHash(tokenHash: Buffer): Promise<RefreshToken | undefined> {
+    return this.db
+      .selectFrom('refresh_tokens')
+      .selectAll()
+      .where('token_hash', '=', tokenHash)
+      .executeTakeFirst();
+  }
+
+  /**
+   * Atomically marks the old refresh token as revoked/replaced, and inserts the new token
+   * in the exact same family within a single database transaction.
+   */
+  async rotateRefreshToken(params: {
+    oldTokenId: string;
+    newTokenId: string;
+    userId: string;
+    familyId: string;
+    newTokenHash: Buffer;
+    expiresAt: Date;
+    ip?: string | null;
+    userAgent?: string | null;
+  }): Promise<RefreshToken> {
+    return this.db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable('refresh_tokens')
+        .set({
+          revoked_at: new Date(),
+          replaced_by: params.newTokenId,
+        })
+        .where('id', '=', params.oldTokenId)
+        .execute();
+
+      return trx
+        .insertInto('refresh_tokens')
+        .values({
+          id: params.newTokenId,
+          user_id: params.userId,
+          family_id: params.familyId,
+          token_hash: params.newTokenHash,
+          expires_at: params.expiresAt,
+          ip: params.ip ?? null,
+          user_agent: params.userAgent ?? null,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    });
+  }
+
+  /**
+   * Revokes a specific refresh token by its hash.
+   */
+  async revokeRefreshToken(tokenHash: Buffer): Promise<void> {
+    await this.db
+      .updateTable('refresh_tokens')
+      .set({ revoked_at: new Date() })
+      .where('token_hash', '=', tokenHash)
+      .where('revoked_at', 'is', null)
+      .execute();
+  }
+
+  /**
+   * Revokes all refresh tokens belonging to a specific token family.
+   * Invoked upon detecting reuse of an already-revoked refresh token.
+   */
+  async revokeFamily(familyId: string): Promise<void> {
+    await this.db
+      .updateTable('refresh_tokens')
+      .set({ revoked_at: new Date() })
+      .where('family_id', '=', familyId)
+      .where('revoked_at', 'is', null)
+      .execute();
+  }
+
+  /**
+   * Revokes all active refresh tokens for a user across all sessions/devices.
+   */
+  async revokeAllUserSessions(userId: string): Promise<void> {
+    await this.db
+      .updateTable('refresh_tokens')
+      .set({ revoked_at: new Date() })
+      .where('user_id', '=', userId)
+      .where('revoked_at', 'is', null)
+      .execute();
   }
 }

@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { createHash, randomBytes } from 'node:crypto';
+import { Injectable, Inject, Optional } from '@nestjs/common';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Argon2Hasher } from '../security/argon2-hasher.js';
+import { JwtService } from '../security/jwt.service.js';
 import { UserRepository } from '../store/user.repository.js';
+import { AUTH_CONFIG, type AuthConfig } from '../config.js';
 import {
   type RegisterDto,
   type RegisterResponseDto,
@@ -15,14 +17,25 @@ import {
   GENERIC_VERIFICATION_SENT_MESSAGE,
   GENERIC_RESET_SENT_MESSAGE,
 } from '../http/dto/email-verification.dto.js';
-import { BadRequestError } from '@streamlite/http';
+import type { LoginDto, LoginResponse, RefreshResponse } from '../http/dto/login.dto.js';
+import { BadRequestError, UnauthorizedError } from '@streamlite/http';
 import { logger } from '@streamlite/logger';
+
+export interface LoginResult extends LoginResponse {
+  rawRefreshToken: string;
+}
+
+export interface RefreshResult extends RefreshResponse {
+  newRawRefreshToken: string;
+}
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly hasher: Argon2Hasher,
+    private readonly jwtService: JwtService,
+    @Optional() @Inject(AUTH_CONFIG) private readonly config?: AuthConfig,
   ) {}
 
   async register(dto: RegisterDto, traceId?: string): Promise<RegisterResponseDto> {
@@ -160,5 +173,186 @@ export class AuthService {
       logger.warn({ err }, 'Password reset failed due to invalid or expired token');
       throw new BadRequestError('Invalid or expired password reset token');
     }
+  }
+
+  /**
+   * Authenticates user credentials with Argon2id and issues a 10-minute Ed25519 access JWT
+   * alongside a sliding 30-day rotating refresh token family.
+   */
+  async login(
+    dto: LoginDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<LoginResult> {
+    const user = await this.userRepository.findByEmail(dto.email);
+
+    if (!user || user.status === 'deleted' || user.deleted_at) {
+      logger.info({ email: dto.email }, 'Login attempted for non-existent user');
+      // Constant-time dummy hash to resist timing-based account enumeration
+      await this.hasher.hashDummy();
+      throw new UnauthorizedError('Invalid email or password');
+    }
+
+    if (user.status === 'locked' && user.locked_until && new Date(user.locked_until) > new Date()) {
+      logger.warn({ email: dto.email, userId: user.id }, 'Login attempted on locked user account');
+      throw new UnauthorizedError('Account is temporarily locked due to too many failed attempts');
+    }
+
+    const passwordMatches = await this.hasher.verify(user.password_hash, dto.password);
+    if (!passwordMatches) {
+      logger.info({ email: dto.email, userId: user.id }, 'Invalid password supplied');
+      await this.userRepository.incrementFailedLogins(user.id);
+      throw new UnauthorizedError('Invalid email or password');
+    }
+
+    if (user.failed_logins > 0) {
+      await this.userRepository.resetFailedLogins(user.id);
+    }
+
+    // Generate fresh session and rotating refresh token family
+    const familyId = randomUUID();
+    const tokenId = randomUUID();
+    const rawRefreshToken = randomBytes(32).toString('base64url');
+    const tokenHash = createHash('sha256').update(rawRefreshToken).digest();
+    const days = this.config?.refreshExpiresInDays ?? 30;
+    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    await this.userRepository.createRefreshToken({
+      id: tokenId,
+      userId: user.id,
+      familyId,
+      tokenHash,
+      expiresAt,
+      ip: ip ?? null,
+      userAgent: userAgent ?? null,
+    });
+
+    const isEmailVerified = Boolean(user.email_verified_at);
+    const { token: accessToken, expiresIn } = await this.jwtService.issueAccountToken({
+      userId: user.id,
+      role: user.role,
+      emailVerified: isEmailVerified,
+      sessionId: familyId,
+    });
+
+    logger.info({ userId: user.id, familyId }, 'User logged in successfully; tokens issued');
+
+    return {
+      accessToken,
+      expiresIn,
+      rawRefreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+      },
+    };
+  }
+
+  /**
+   * Rotates a sliding refresh token within its family, returning a new access token
+   * and a new refresh token. Detects token reuse (stolen token attacks) and immediately
+   * revokes the entire family.
+   */
+  async refresh(
+    rawRefreshToken: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<RefreshResult> {
+    if (!rawRefreshToken) {
+      throw new UnauthorizedError('Refresh token is missing');
+    }
+
+    const tokenHash = createHash('sha256').update(rawRefreshToken).digest();
+    const record = await this.userRepository.findRefreshTokenByHash(tokenHash);
+
+    if (!record) {
+      logger.warn('Refresh attempted with unknown token hash');
+      throw new UnauthorizedError('Invalid refresh token');
+    }
+
+    // AUTOMATIC REUSE DETECTION: Replay of an already-revoked token indicates theft!
+    if (record.revoked_at !== null) {
+      logger.error(
+        { familyId: record.family_id, userId: record.user_id },
+        'Stolen refresh token reuse detected! Immediately invalidating entire token family.',
+      );
+      await this.userRepository.revokeFamily(record.family_id);
+      throw new UnauthorizedError('Token reuse detected; session revoked');
+    }
+
+    // Expiry check
+    if (new Date(record.expires_at) <= new Date()) {
+      logger.info({ familyId: record.family_id, userId: record.user_id }, 'Refresh token expired');
+      throw new UnauthorizedError('Refresh token has expired');
+    }
+
+    // Ensure user remains active
+    const user = await this.userRepository.findById(record.user_id);
+    if (!user || user.status === 'deleted' || user.deleted_at) {
+      throw new UnauthorizedError('User account is inactive or deleted');
+    }
+
+    if (user.status === 'locked' && user.locked_until && new Date(user.locked_until) > new Date()) {
+      throw new UnauthorizedError('Account is temporarily locked');
+    }
+
+    // Rotate within family
+    const newTokenId = randomUUID();
+    const newRawRefreshToken = randomBytes(32).toString('base64url');
+    const newTokenHash = createHash('sha256').update(newRawRefreshToken).digest();
+    const days = this.config?.refreshExpiresInDays ?? 30;
+    const newExpiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    await this.userRepository.rotateRefreshToken({
+      oldTokenId: record.id,
+      newTokenId,
+      userId: record.user_id,
+      familyId: record.family_id,
+      newTokenHash,
+      expiresAt: newExpiresAt,
+      ip: ip ?? null,
+      userAgent: userAgent ?? null,
+    });
+
+    const isEmailVerified = Boolean(user.email_verified_at);
+    const { token: accessToken, expiresIn } = await this.jwtService.issueAccountToken({
+      userId: user.id,
+      role: user.role,
+      emailVerified: isEmailVerified,
+      sessionId: record.family_id,
+    });
+
+    logger.info(
+      { userId: user.id, familyId: record.family_id },
+      'Refresh token rotated successfully within family',
+    );
+
+    return {
+      accessToken,
+      expiresIn,
+      newRawRefreshToken,
+    };
+  }
+
+  /**
+   * Revokes the current session refresh token.
+   */
+  async logout(rawRefreshToken: string): Promise<void> {
+    if (!rawRefreshToken) {
+      return;
+    }
+
+    const tokenHash = createHash('sha256').update(rawRefreshToken).digest();
+    await this.userRepository.revokeRefreshToken(tokenHash);
+    logger.info('Refresh token revoked successfully on logout');
+  }
+
+  /**
+   * Revokes all active refresh tokens for the user across all devices.
+   */
+  async logoutAll(userId: string): Promise<void> {
+    await this.userRepository.revokeAllUserSessions(userId);
+    logger.info({ userId }, 'All user sessions revoked successfully');
   }
 }
