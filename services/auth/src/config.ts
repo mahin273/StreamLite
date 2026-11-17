@@ -6,6 +6,11 @@ export const AuthConfigSchema = z.object({
   dbMaxConnections: z.coerce.number().int().positive().default(10),
   argon2MaxConcurrent: z.coerce.number().int().positive().default(4),
   uvThreadpoolSize: z.coerce.number().int().positive().default(8),
+  smtpHost: z.string().default('localhost'),
+  smtpPort: z.coerce.number().int().positive().default(1025),
+  smtpUser: z.string().optional(),
+  smtpPass: z.string().optional(),
+  emailFrom: z.string().default('StreamLite <no-reply@streamlite.dev>'),
   nodeEnv: z.enum(['development', 'test', 'production']).default('development'),
 });
 
@@ -18,6 +23,11 @@ export function loadAuthConfig(): AuthConfig {
     dbMaxConnections: process.env['AUTH_DB_MAX_CONNECTIONS'],
     argon2MaxConcurrent: process.env['ARGON2_MAX_CONCURRENT'],
     uvThreadpoolSize: process.env['UV_THREADPOOL_SIZE'],
+    smtpHost: process.env['MAILPIT_SMTP_HOST'] || process.env['SMTP_HOST'],
+    smtpPort: process.env['MAILPIT_SMTP_PORT'] || process.env['SMTP_PORT'],
+    smtpUser: process.env['SMTP_USER'],
+    smtpPass: process.env['SMTP_PASS'],
+    emailFrom: process.env['EMAIL_FROM'],
     nodeEnv: process.env['NODE_ENV'],
   });
 }

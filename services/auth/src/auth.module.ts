@@ -4,6 +4,7 @@ import { AUTH_DATABASE, UserRepository } from './store/user.repository.js';
 import { Argon2Hasher } from './security/argon2-hasher.js';
 import { AuthService } from './domain/auth.service.js';
 import { AuthController } from './http/auth.controller.js';
+import { EmailService } from './email/email.service.js';
 
 @Module({
   controllers: [AuthController],
@@ -17,9 +18,10 @@ import { AuthController } from './http/auth.controller.js';
     },
     UserRepository,
     Argon2Hasher,
+    EmailService,
     AuthService,
   ],
-  exports: [AUTH_DATABASE, UserRepository, Argon2Hasher, AuthService],
+  exports: [AUTH_DATABASE, UserRepository, Argon2Hasher, EmailService, AuthService],
 })
 export class AuthModule {
   static register(config?: DatabaseConfig): DynamicModule {
@@ -39,9 +41,10 @@ export class AuthModule {
         },
         UserRepository,
         Argon2Hasher,
+        EmailService,
         AuthService,
       ],
-      exports: [AUTH_DATABASE, 'AUTH_POOL', UserRepository, Argon2Hasher, AuthService],
+      exports: [AUTH_DATABASE, 'AUTH_POOL', UserRepository, Argon2Hasher, EmailService, AuthService],
     };
   }
 }
