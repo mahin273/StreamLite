@@ -10,26 +10,28 @@
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
     "codegen:kysely": "kysely-codegen --url ${AUTH_DB_URL:-postgres://auth:10273@localhost:5438/auth_db} --out-file ./src/store/types.ts",
-    "test": "node --test dist/**/*.test.js"
+    "test": "node --test --test-concurrency=1 dist/**/*.test.js"
   },
   "dependencies": {
+    "@nestjs/common": "^10.4.15",
+    "@nestjs/core": "^10.4.15",
+    "@nestjs/platform-fastify": "^10.4.22",
     "@streamlite/contracts": "*",
     "@streamlite/events": "*",
     "@streamlite/http": "*",
     "@streamlite/logger": "*",
     "@streamlite/outbox": "*",
     "@streamlite/proto-gen": "*",
-    "@nestjs/common": "^10.4.15",
-    "@nestjs/core": "^10.4.15",
-    "@nestjs/platform-fastify": "^10.4.22",
     "argon2": "^0.45.2",
     "fastify": "^4.29.1",
     "kysely": "^0.27.5",
+    "nodemailer": "^10.6.0",
     "pg": "^8.13.1",
     "rxjs": "^7.8.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.11.10",
     "kysely-codegen": "^0.17.0",
     "node-pg-migrate": "^7.8.0"
