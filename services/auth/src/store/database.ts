@@ -6,6 +6,7 @@ import type { DB } from './types.js';
 // Parse PostgreSQL int8 (bigint / bigserial, OID 20) as JavaScript Number (Design_Doc.md Section 6.1)
 types.setTypeParser(20, (val: string) => Number(val));
 
+export const AUTH_DB = 'AUTH_DATABASE';
 export type AuthDatabase = Kysely<DB>;
 
 export interface DatabaseConfig {

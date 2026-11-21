@@ -2,10 +2,10 @@ import { Injectable, Optional, Inject } from '@nestjs/common';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import type { AuthDatabase } from '../store/database.js';
-import { loadAuthConfig, type AuthConfig } from '../config.js';
+import { loadAuthConfig, type AuthConfig, AUTH_CONFIG } from '../config.js';
 import { logger } from '@streamlite/logger';
 
-export const AUTH_CONFIG = 'AUTH_CONFIG';
+export { AUTH_CONFIG };
 
 export interface EmailPayload {
   userId: string;
