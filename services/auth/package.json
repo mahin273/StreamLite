@@ -25,10 +25,12 @@
     "@streamlite/proto-gen": "*",
     "argon2": "^0.45.2",
     "fastify": "^4.29.1",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.17",
     "kysely": "^0.27.5",
     "nodemailer": "^10.6.0",
     "pg": "^8.13.1",
+    "rate-limiter-flexible": "^11.5.0",
     "rxjs": "^7.8.1",
     "zod": "^3.24.2"
   },

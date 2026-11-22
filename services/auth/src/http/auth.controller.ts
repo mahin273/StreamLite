@@ -51,8 +51,11 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.ACCEPTED)
   @UsePipes(new ZodValidationPipe(RegisterDtoSchema))
-  async register(@Body() dto: RegisterDto): Promise<RegisterResponseDto> {
-    return this.authService.register(dto);
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() req: FastifyRequest,
+  ): Promise<RegisterResponseDto> {
+    return this.authService.register(dto, req.ip);
   }
 
   @Post('verify-email')

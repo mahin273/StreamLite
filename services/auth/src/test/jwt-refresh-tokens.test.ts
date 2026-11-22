@@ -12,6 +12,7 @@ import { TokenKeyManager } from '../security/token-key-manager.js';
 import { JwtService } from '../security/jwt.service.js';
 import { UserRepository } from '../store/user.repository.js';
 import { Argon2Hasher } from '../security/argon2-hasher.js';
+import { RateLimiterService } from '../security/rate-limiter.service.js';
 
 function extractCookie(
   headers: OutgoingHttpHeaders,
@@ -49,6 +50,7 @@ describe('Two-Tier JWTs, JWKS & Refresh Token Rotation (Integration)', () => {
   let jwtService: JwtService;
   let userRepo: UserRepository;
   let hasher: Argon2Hasher;
+  let rateLimiter: RateLimiterService;
 
   before(async () => {
     const dbInstance = createAuthDatabase({
@@ -79,6 +81,7 @@ describe('Two-Tier JWTs, JWKS & Refresh Token Rotation (Integration)', () => {
     jwtService = app.get(JwtService);
     userRepo = app.get(UserRepository);
     hasher = app.get(Argon2Hasher);
+    rateLimiter = app.get(RateLimiterService);
   });
 
   after(async () => {
@@ -88,6 +91,7 @@ describe('Two-Tier JWTs, JWKS & Refresh Token Rotation (Integration)', () => {
 
   beforeEach(async () => {
     // Clean up test tables between test runs
+    await rateLimiter.resetAll();
     await db.deleteFrom('refresh_tokens').execute();
     await db.deleteFrom('outbox').execute();
     await db.deleteFrom('email_tokens').execute();

@@ -7,6 +7,7 @@ export * from './security/password-rules.js';
 export * from './security/argon2-hasher.js';
 export * from './security/token-key-manager.js';
 export * from './security/jwt.service.js';
+export * from './security/rate-limiter.service.js';
 export * from './email/email.service.js';
 export * from './domain/auth.service.js';
 export * from './http/dto/register.dto.js';

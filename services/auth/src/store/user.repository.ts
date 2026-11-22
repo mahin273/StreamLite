@@ -247,7 +247,8 @@ export class UserRepository {
   }
 
   /**
-   * Resets failed login attempts for a user upon successful authentication.
+   * Resets failed login attempts for a user upon successful authentication
+   * and restores status to active if previously locked.
    */
   async resetFailedLogins(userId: string): Promise<void> {
     await this.db
@@ -255,10 +256,55 @@ export class UserRepository {
       .set({
         failed_logins: 0,
         locked_until: null,
+        status: 'active',
         updated_at: new Date(),
       })
       .where('id', '=', userId)
       .execute();
+  }
+
+  /**
+   * Records a failed login attempt for a user and applies exponential account lockout
+   * if failed attempts reach or exceed the threshold (default: 5).
+   * Backoff: 5 failures -> 15 min, 6 failures -> 30 min, 7 failures -> 60 min, 8+ failures -> 120 min.
+   */
+  async recordFailedLogin(
+    userId: string,
+    lockoutThreshold = 5,
+  ): Promise<{ failedLogins: number; isLocked: boolean; lockedUntil: Date | null }> {
+    return this.db.transaction().execute(async (trx) => {
+      const updated = await trx
+        .updateTable('users')
+        .set((eb) => ({
+          failed_logins: eb('failed_logins', '+', 1),
+          updated_at: new Date(),
+        }))
+        .where('id', '=', userId)
+        .returning(['failed_logins'])
+        .executeTakeFirstOrThrow();
+
+      const count = updated.failed_logins;
+      if (count >= lockoutThreshold) {
+        // Exponential backoff: 15m -> 30m -> 60m -> 120m max
+        const exponent = Math.min(count - lockoutThreshold, 3);
+        const lockDurationMinutes = 15 * Math.pow(2, exponent);
+        const lockedUntil = new Date(Date.now() + lockDurationMinutes * 60 * 1000);
+
+        await trx
+          .updateTable('users')
+          .set({
+            status: 'locked',
+            locked_until: lockedUntil,
+            updated_at: new Date(),
+          })
+          .where('id', '=', userId)
+          .execute();
+
+        return { failedLogins: count, isLocked: true, lockedUntil };
+      }
+
+      return { failedLogins: count, isLocked: false, lockedUntil: null };
+    });
   }
 
   /**

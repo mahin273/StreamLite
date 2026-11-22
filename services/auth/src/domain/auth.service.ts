@@ -2,6 +2,7 @@ import { Injectable, Inject, Optional } from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Argon2Hasher } from '../security/argon2-hasher.js';
 import { JwtService } from '../security/jwt.service.js';
+import { RateLimiterService } from '../security/rate-limiter.service.js';
 import { UserRepository } from '../store/user.repository.js';
 import { AUTH_CONFIG, type AuthConfig } from '../config.js';
 import {
@@ -35,10 +36,18 @@ export class AuthService {
     private readonly userRepository: UserRepository,
     private readonly hasher: Argon2Hasher,
     private readonly jwtService: JwtService,
+    private readonly rateLimiter: RateLimiterService,
     @Optional() @Inject(AUTH_CONFIG) private readonly config?: AuthConfig,
   ) {}
 
-  async register(dto: RegisterDto, traceId?: string): Promise<RegisterResponseDto> {
+  async register(
+    dto: RegisterDto,
+    ip?: string,
+    traceId?: string,
+  ): Promise<RegisterResponseDto> {
+    // Rate limit registration by IP (5 attempts / hour)
+    await this.rateLimiter.consumeRegister(ip ?? 'unknown');
+
     const existing = await this.userRepository.findByEmail(dto.email);
 
     if (existing) {
@@ -123,6 +132,9 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    // Rate limit forgot password requests by email (3 requests / hour)
+    await this.rateLimiter.consumeForgotPassword(dto.email);
+
     const user = await this.userRepository.findByEmail(dto.email);
 
     if (!user || user.deleted_at !== null) {
@@ -184,6 +196,11 @@ export class AuthService {
     ip?: string,
     userAgent?: string,
   ): Promise<LoginResult> {
+    const clientIp = ip ?? 'unknown';
+
+    // 1. Pre-flight rate limiting check by (email + IP)
+    await this.rateLimiter.consumeLogin(dto.email, clientIp);
+
     const user = await this.userRepository.findByEmail(dto.email);
 
     if (!user || user.status === 'deleted' || user.deleted_at) {
@@ -193,6 +210,7 @@ export class AuthService {
       throw new UnauthorizedError('Invalid email or password');
     }
 
+    // 2. Pre-flight account lockout check (prevents executing expensive Argon2 on locked accounts)
     if (user.status === 'locked' && user.locked_until && new Date(user.locked_until) > new Date()) {
       logger.warn({ email: dto.email, userId: user.id }, 'Login attempted on locked user account');
       throw new UnauthorizedError('Account is temporarily locked due to too many failed attempts');
@@ -201,13 +219,30 @@ export class AuthService {
     const passwordMatches = await this.hasher.verify(user.password_hash, dto.password);
     if (!passwordMatches) {
       logger.info({ email: dto.email, userId: user.id }, 'Invalid password supplied');
-      await this.userRepository.incrementFailedLogins(user.id);
+      const lockoutRes = await this.userRepository.recordFailedLogin(
+        user.id,
+        this.config?.accountLockoutThreshold ?? 5,
+      );
+      if (lockoutRes.isLocked) {
+        logger.warn(
+          {
+            email: dto.email,
+            userId: user.id,
+            failedLogins: lockoutRes.failedLogins,
+            lockedUntil: lockoutRes.lockedUntil,
+          },
+          'Account locked due to consecutive failed login attempts',
+        );
+      }
       throw new UnauthorizedError('Invalid email or password');
     }
 
-    if (user.failed_logins > 0) {
+    if (user.failed_logins > 0 || user.status === 'locked') {
       await this.userRepository.resetFailedLogins(user.id);
     }
+
+    // Clear Redis rate limit counter on successful login
+    await this.rateLimiter.resetLogin(dto.email, clientIp);
 
     // Generate fresh session and rotating refresh token family
     const familyId = randomUUID();
