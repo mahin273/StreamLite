@@ -49,6 +49,16 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       response.setHeader('Content-Type', 'application/problem+json');
     }
 
+    // Set Retry-After header if provided (e.g. 429 Too Many Requests)
+    const retryAfter = (exception as { retryAfterSeconds?: number })?.retryAfterSeconds;
+    if (typeof retryAfter === 'number' && retryAfter > 0) {
+      if (typeof response.header === 'function') {
+        response.header('Retry-After', String(retryAfter));
+      } else if (typeof response.setHeader === 'function') {
+        response.setHeader('Retry-After', String(retryAfter));
+      }
+    }
+
     // Support both Fastify (.send) and Express (.json)
     if (typeof response.status === 'function') {
       response.status(problem.status);

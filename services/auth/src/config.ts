@@ -21,6 +21,14 @@ export const AuthConfigSchema = z.object({
     .default('streamlite-signing-key-secret-32-chars-long!'),
   cookieSecret: z.string().default('streamlite-cookie-secret-min-32-chars-long!'),
   refreshExpiresInDays: z.coerce.number().int().positive().default(30),
+  redisUrl: z.string().default('redis://localhost:6379'),
+  rateLimitLoginPoints: z.coerce.number().int().positive().default(5),
+  rateLimitLoginDuration: z.coerce.number().int().positive().default(900),
+  rateLimitRegisterPoints: z.coerce.number().int().positive().default(5),
+  rateLimitRegisterDuration: z.coerce.number().int().positive().default(3600),
+  rateLimitForgotPoints: z.coerce.number().int().positive().default(3),
+  rateLimitForgotDuration: z.coerce.number().int().positive().default(3600),
+  accountLockoutThreshold: z.coerce.number().int().positive().default(5),
 });
 
 export type AuthConfig = z.infer<typeof AuthConfigSchema>;
@@ -46,5 +54,13 @@ export function loadAuthConfig(): AuthConfig {
     keyEncryptionSecret: process.env['AUTH_KEY_ENCRYPTION_SECRET'],
     cookieSecret: process.env['COOKIE_SECRET'],
     refreshExpiresInDays: process.env['REFRESH_EXPIRES_IN_DAYS'],
+    redisUrl: process.env['REDIS_URL'],
+    rateLimitLoginPoints: process.env['RATE_LIMIT_LOGIN_POINTS'],
+    rateLimitLoginDuration: process.env['RATE_LIMIT_LOGIN_DURATION'],
+    rateLimitRegisterPoints: process.env['RATE_LIMIT_REGISTER_POINTS'],
+    rateLimitRegisterDuration: process.env['RATE_LIMIT_REGISTER_DURATION'],
+    rateLimitForgotPoints: process.env['RATE_LIMIT_FORGOT_POINTS'],
+    rateLimitForgotDuration: process.env['RATE_LIMIT_FORGOT_DURATION'],
+    accountLockoutThreshold: process.env['ACCOUNT_LOCKOUT_THRESHOLD'],
   });
 }

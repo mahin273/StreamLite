@@ -4,6 +4,7 @@ import { AUTH_DATABASE, UserRepository } from './store/user.repository.js';
 import { Argon2Hasher } from './security/argon2-hasher.js';
 import { TokenKeyManager } from './security/token-key-manager.js';
 import { JwtService } from './security/jwt.service.js';
+import { RateLimiterService } from './security/rate-limiter.service.js';
 import { AuthService } from './domain/auth.service.js';
 import { AuthController } from './http/auth.controller.js';
 import { JwksController } from './http/jwks.controller.js';
@@ -39,6 +40,7 @@ export interface AuthModuleOptions extends DatabaseConfig {
     EmailService,
     TokenKeyManager,
     JwtService,
+    RateLimiterService,
     AuthService,
   ],
   exports: [
@@ -50,6 +52,7 @@ export interface AuthModuleOptions extends DatabaseConfig {
     EmailService,
     TokenKeyManager,
     JwtService,
+    RateLimiterService,
     AuthService,
   ],
 })
@@ -83,6 +86,7 @@ export class AuthModule {
         EmailService,
         TokenKeyManager,
         JwtService,
+        RateLimiterService,
         AuthService,
       ],
       exports: [
@@ -95,6 +99,7 @@ export class AuthModule {
         EmailService,
         TokenKeyManager,
         JwtService,
+        RateLimiterService,
         AuthService,
       ],
     };

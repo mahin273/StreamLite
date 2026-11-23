@@ -109,6 +109,24 @@ export class ConflictError extends AppError {
   }
 }
 
+export class TooManyRequestsError extends AppError {
+  public readonly retryAfterSeconds?: number | undefined;
+
+  constructor(
+    detail = 'Too many requests. Please slow down and try again later.',
+    retryAfterSeconds?: number | undefined,
+  ) {
+    super({
+      statusCode: 429,
+      title: 'Too Many Requests',
+      detail,
+      code: 'TOO_MANY_REQUESTS',
+      type: 'https://streamlite.dev/errors/too-many-requests',
+    });
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 export class InternalServerError extends AppError {
   constructor(detail = 'An unexpected internal server error occurred') {
     super({

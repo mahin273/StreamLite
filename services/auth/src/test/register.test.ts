@@ -10,10 +10,12 @@ import { Argon2Hasher } from '../security/argon2-hasher.js';
 import { AsyncSemaphore } from '../security/semaphore.js';
 import { isCommonPassword } from '../security/password-rules.js';
 import { GENERIC_REGISTRATION_MESSAGE } from '../http/dto/register.dto.js';
+import { RateLimiterService } from '../security/rate-limiter.service.js';
 
 describe('User Registration & Argon2id (Integration)', () => {
   let app: NestFastifyApplication;
   let db: AuthDatabase;
+  let rateLimiter: RateLimiterService;
 
   before(async () => {
     const dbInstance = createAuthDatabase({
@@ -36,6 +38,7 @@ describe('User Registration & Argon2id (Integration)', () => {
     app.useGlobalFilters(new ProblemDetailsFilter());
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
+    rateLimiter = app.get(RateLimiterService);
   });
 
   after(async () => {
@@ -45,6 +48,7 @@ describe('User Registration & Argon2id (Integration)', () => {
 
   beforeEach(async () => {
     // Clean up test tables between test runs
+    await rateLimiter.resetAll();
     await db.deleteFrom('outbox').execute();
     await db.deleteFrom('email_tokens').execute();
     await db.deleteFrom('profiles').execute();

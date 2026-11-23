@@ -12,12 +12,14 @@ import {
   GENERIC_RESET_SENT_MESSAGE,
 } from '../http/dto/email-verification.dto.js';
 import { Argon2Hasher } from '../security/argon2-hasher.js';
+import { RateLimiterService } from '../security/rate-limiter.service.js';
 
 describe('Email Verification & Password Reset (Integration)', () => {
   let app: NestFastifyApplication;
   let db: AuthDatabase;
   let emailService: EmailService;
   let hasher: Argon2Hasher;
+  let rateLimiter: RateLimiterService;
 
   before(async () => {
     const dbInstance = createAuthDatabase({
@@ -43,6 +45,7 @@ describe('Email Verification & Password Reset (Integration)', () => {
 
     emailService = app.get(EmailService);
     hasher = app.get(Argon2Hasher);
+    rateLimiter = app.get(RateLimiterService);
   });
 
   after(async () => {
@@ -52,6 +55,7 @@ describe('Email Verification & Password Reset (Integration)', () => {
 
   beforeEach(async () => {
     // Clear state between tests
+    await rateLimiter.resetAll();
     await db.deleteFrom('outbox').execute();
     await db.deleteFrom('refresh_tokens').execute();
     await db.deleteFrom('email_tokens').execute();
